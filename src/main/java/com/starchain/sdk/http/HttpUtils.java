@@ -1,13 +1,38 @@
 package com.starchain.sdk.http;
 
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;  
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 /** 
  * 将字节流转换为字符串的工具类 
  */  
-public class HttpUtils {  
+public class HttpUtils {
+
+    public static String get(String u){
+        try{
+            URL url = new URL(u);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            int statusCode = connection.getResponseCode();
+            if (statusCode == 200) {
+                InputStream is = connection.getInputStream();
+                String result = HttpUtils.readMyInputStream(is);
+                return result;
+            }
+        }catch (IOException e){
+            e.printStackTrace();
+            return "";
+        }
+
+        return null;
+    }
   
     public static String readMyInputStream(InputStream is) {  
         byte[] result;  

@@ -1,21 +1,28 @@
 package com.starchain.sdk;
 
 import com.starchain.sdk.data.BigDecimalUtil;
+import com.starchain.sdk.info.*;
+import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
+import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.starchain.sdk.cryptography.Base58;
 import com.starchain.sdk.cryptography.Digest;
 import com.starchain.sdk.data.DataUtil;
-import com.starchain.sdk.info.AssetInfo;
-import com.starchain.sdk.info.TransferInputData;
-import com.starchain.sdk.info.TransferLengthData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Comparator;
+import java.util.List;
 
 
 public class Transaction {
+
+	private static Logger log = LoggerFactory.getLogger("transfer");
 
 	/**
 	 * Make transfer transaction and get transaction unsigned data.
@@ -51,7 +58,7 @@ public class Transaction {
 	 *
 	 * @returns {*} : TxUnsignedData
 	 */
-	
+
 	public static String makeTransferTransaction(AssetInfo Asset, byte[] publicKeyEncoded, String toAddress, BigDecimal transferAssetAmount,String Desc){
 		
 		byte[] ProgramHash = Base58.decode(toAddress);
@@ -71,7 +78,7 @@ public class Transaction {
 				ProgramHash_part[i] = ProgramHash[i+21];
 			}
 			if(!DataUtil.bytesToHexString(ProgramSha256Buffer_part).equals(DataUtil.bytesToHexString(ProgramHash_part))) {
-				//address verify failed.
+				log.error("dest addr is error");
 				return "-1";
 			}
 		} catch (Exception e) {  
@@ -91,6 +98,7 @@ public class Transaction {
 		//Input Construct
 		TransferInputData inputData = makeTransferInputData(Asset,transferAssetAmount);
 		if(inputData == null) {
+			log.error("parse input data error");
 			return "-2";
 		}
 		
@@ -142,9 +150,185 @@ public class Transaction {
 		}
 		return data;
 	}
+
+	public static String makeTransferWithMulti(AssetInfo assetInfo,String to,String change, BigDecimal amount,String desc){
+		if(verifyAddr(to)){
+			byte[] program = Base58.decode(to);
+			byte[] changes = Base58.decode(change);
+			byte[] programHash = new byte[20];
+			byte[] changeHash = new byte[20];
+			for(int i = 0 ; i < 20 ; i ++) {
+				programHash[i] = program[i+1];
+				changeHash[i] = changes[i+1];
+			}
+			//Input Construct
+			TransferInputData inputData = makeTransferInputData(assetInfo,amount);
+			if(inputData == null) {
+				log.error("合成输入数据出错");
+				return null;
+			}
+			BigDecimal inputAmount = inputData.getCoin_amount();
+
+			//Adjust the accuracy.
+			BigDecimal accuracyVal = BigDecimal.valueOf(100000000);
+			BigInteger newOutputAmount = BigDecimalUtil.mul(amount,accuracyVal).toBigInteger() ;
+			BigInteger input = BigDecimalUtil.mul(inputAmount,accuracyVal).toBigInteger();
+			BigInteger newInputAmount = input.subtract(newOutputAmount);
+
+			/**
+			 * data
+			 * @type {string}
+			 */
+			String type = "80";
+			String version = "00";
+			//Custom Attributes
+			String transactionAttrNum = "01";
+			String transactionAttrUsage = "00";
+			String transactionAttrData =  DataUtil.bytesToHexString(desc.getBytes());
+			String transactionAttrDataLen = DataUtil.prefixInteger(Integer.toHexString(transactionAttrData.length()/2), 2);
+			String referenceTransactionData = DataUtil.bytesToHexString(inputData.getData());
+			String data = type + version + transactionAttrNum + transactionAttrUsage + transactionAttrDataLen+ transactionAttrData + referenceTransactionData ;
+
+			//OUTPUT
+			String transactionOutputNum = "01";//No change
+			String transactionOutputAssetID = DataUtil.bytesToHexString(DataUtil.reverseArray(DataUtil.HexStringToByteArray(assetInfo.getAssetId())));
+			String transactionOutputValue = DataUtil.numStoreInMemory(newOutputAmount.toString(16),16);
+			String transactionOutputProgramHash = DataUtil.bytesToHexString(programHash);
+
+			if(inputAmount.compareTo(amount) == 0) {
+				data =data + transactionOutputNum +  transactionOutputAssetID + transactionOutputValue + transactionOutputProgramHash;
+			}else {
+				transactionOutputNum = "02" ; //Have the change
+				data =data + transactionOutputNum +  transactionOutputAssetID + transactionOutputValue + transactionOutputProgramHash;
+				//Change to yourself
+				String transactionOutputValue_me  =DataUtil.numStoreInMemory(newInputAmount.toString(16),16);
+				String transactionOutputProgramHash_me = DataUtil.bytesToHexString(changeHash);
+				data = data + transactionOutputAssetID + transactionOutputValue_me + transactionOutputProgramHash_me;
+			}
+			return data;
+		}
+		return null;
+	}
+
+	public static String makeMtoMTransfer(AssetInfo assetInfo, List<DestAddr> addrs,String change,String attribute){
+		BigDecimal sum = BigDecimal.ZERO;
+		for(DestAddr addr : addrs){
+			sum = BigDecimalUtil.add(sum,addr.getValue());
+			if(!verifyAddr(addr.getAddr())){
+				return "";
+			}
+		}
+		byte[] changes = Base58.decode(change);
+		byte[] changeHash = ByteUtils.subArray(changes,1,21);
+		//Input Construct
+		TransferInputData inputData = makeInputData(assetInfo,sum);
+		if(inputData == null) {
+			return "";
+		}
+		BigDecimal inputAmount = inputData.getCoin_amount();
+
+		BigDecimal accuracyVal = BigDecimal.valueOf(100000000);
+		//Adjust the accuracy.
+		BigInteger changeValue = BigDecimalUtil.mul(BigDecimalUtil.sub(inputAmount,sum),accuracyVal).toBigInteger();
+
+//		BigInteger newOutputAmount = BigDecimalUtil.mul(sum,accuracyVal).toBigInteger() ;
+//		BigInteger input = BigDecimalUtil.mul(inputAmount,accuracyVal).toBigInteger();
+//		BigInteger newInputAmount = input.subtract(newOutputAmount);
+
+
+		StringBuffer sb = new StringBuffer();
+		sb.append("80").append("00").append("01").append("00");
+		String attriNum = DataUtil.numStoreInMemory(String.valueOf(attribute.getBytes().length),2);
+		sb.append(attriNum);
+		String attriData = DataUtil.bytesToHexString(attribute.getBytes());
+		sb.append(attriData);
+		String inputStr = DataUtil.bytesToHexString(inputData.getData());
+		sb.append(inputStr);
+
+		int outputnumber = addrs.size();
+		if(changeValue.compareTo(BigInteger.ZERO)>0) {
+			outputnumber++;
+		}
+		String outputNum = DataUtil.numStoreInMemory(String.valueOf(outputnumber),2);
+		sb.append(outputNum);
+
+		String outputAssetId = DataUtil.bytesToHexString(DataUtil.reverseArray(DataUtil.HexStringToByteArray(assetInfo.getAssetId())));
+
+		for(DestAddr addr: addrs) {
+			BigInteger outputValue = BigDecimalUtil.mul(addr.getValue(),accuracyVal).toBigInteger();
+			sb.append(outputAssetId).append(DataUtil.numStoreInMemory(outputValue.toString(16),16));
+			sb.append(DataUtil.bytesToHexString(addr.getProgramHash()));
+		}
+		//change
+		if(changeValue.compareTo(BigInteger.ZERO)>0) {
+			sb.append(outputAssetId).append(DataUtil.numStoreInMemory(changeValue.toString(16),16));
+			sb.append(DataUtil.bytesToHexString(changeHash));
+		}
+		return sb.toString();
+	}
+
+	private static TransferInputData makeInputData(AssetInfo info,BigDecimal outsum){
+		List<Utxo> utxos = info.getUtxos();
+		if(utxos != null && utxos.size()>0){
+			utxos.sort(new Comparator<Utxo>() {
+				@Override
+				public int compare(Utxo o1, Utxo o2) {
+					return o1.getValue().compareTo(o2.getValue());
+				}
+			});
+
+			BigDecimal total = utxos.stream().map(item->{
+				return item.getValue();
+			}).reduce(BigDecimal.ZERO,BigDecimal::add);
+
+			if(total.compareTo(outsum)<0){
+				return null;
+			}
+			BigDecimal amount = outsum;
+			int k = 0;
+			while(utxos.get(k).getValue().compareTo(amount)<=0) {
+				amount = BigDecimalUtil.sub(amount,utxos.get(k).getValue());
+				if (amount.compareTo(BigDecimal.ZERO) <= 0){
+					break;
+				}
+				k = k+1 ;
+			}
+
+			TransferLengthData lengthData  = InputDataLength(k);
+			ByteOutputStream bais = new ByteOutputStream();
+			if(lengthData.getlen() ==1) {
+				bais.write(DataUtil.HexStringToByteArray(lengthData.getInputNum()));
+			}else {
+				byte[] firstVal = DataUtil.HexStringToByteArray(lengthData.getfirstVal());
+				byte[] inputNum = DataUtil.HexStringToByteArray(lengthData.getInputNum());
+				bais.write(firstVal);
+				bais.write(inputNum);
+			}
+
+			//input coins  programhash
+			for( int x = 0 ; x < k+1 ; x++) {
+				byte[] txid = DataUtil.reverseArray(DataUtil.HexStringToByteArray(utxos.get(x).getTxid()));
+				bais.write(txid);
+				bais.write(DataUtil.HexStringToByteArray(DataUtil.numStoreInMemory(Integer.toHexString(utxos.get(x).getIndex()), 4)));
+			}
+
+			//calc coin_amount
+			BigDecimal balance = BigDecimal.ZERO;
+			for(int i = 0 ; i < k+1 ; i ++) {
+				balance = BigDecimalUtil.add(balance , utxos.get(i).getValue());
+			}
+
+			TransferInputData inputData = new TransferInputData();
+			inputData.setCoin_amount(balance);
+			inputData.setData(bais.toByteArray());
+			return inputData;
+		}
+		return null;
+	}
+
+
 	
 	private static TransferInputData makeTransferInputData(AssetInfo Asset , BigDecimal transferAssetAmount) {
-	
 		JSONArray Utxo = Asset.getUtxo();
 		BigDecimal[] coin_value = new BigDecimal[Utxo.length()] ;
 		String[] coin_txid = new String[Utxo.length()];
@@ -159,18 +343,19 @@ public class Transaction {
 		} catch (Exception e) {  
             e.printStackTrace();  				  
         }
-		
+
+        //排序
 	    for (int i = 0 ; i < coin_value.length - 1 ; i++) {
 	        for (int j = 0 ; j < coin_value.length - 1 - i ; j++) {
-	            if (coin_value[j].compareTo(coin_value[j + 1])<0) {
+	            if (coin_value[j].compareTo(coin_value[j + 1])>0) {
 	            	BigDecimal temp = coin_value[j];
 	            	coin_value[j] = coin_value[j + 1];
 	            	coin_value[j + 1] = temp;
-	            	
+
 	            	String temp2 = coin_txid[j];
 	            	coin_txid[j] = coin_txid[j+1];
 	            	coin_txid[j+1] = temp2;
-	            	
+
 	            	int temp3 = coin_index[j];
 	            	coin_index[j] = coin_index[j+1];
 	            	coin_index[j+1] = temp3;
@@ -184,6 +369,8 @@ public class Transaction {
 	    }
 		
 	    if(sum.compareTo(transferAssetAmount)<0) {
+	    	//总余额小于转帐金额
+			log.error("balance is not enought");
 	    	return null;
 	    }
 	    
@@ -221,16 +408,16 @@ public class Transaction {
 	    	m = m + inputNum.length;
 	    }
 	    
-	    //input coins
+	    //input coins  programhash
 	    for( int x = 0 ; x < k+1 ; x++) {
-	    	//txid
+	    	//txid programhash
 	    	int pos = m + (x * 34);
 	    	byte[] txid = DataUtil.reverseArray(DataUtil.HexStringToByteArray(coin_txid[x]));
 	    	for(int i = 0 ; i < txid.length ; i++) {
 	    		data[pos+i] = txid[i];
 	    	}
 	    	
-	    	//index
+	    	//index pos
 	    	pos = pos + 32;
 	    	byte[] index = DataUtil.HexStringToByteArray(DataUtil.numStoreInMemory(Integer.toHexString(coin_index[x]), 4));
 	    	for(int i = 0 ; i < index.length ; i++) {
@@ -251,6 +438,18 @@ public class Transaction {
     	
 		return inputData;
 		
+	}
+
+	private void writeVarUint(OutputStream os,long value){
+		byte[] buf = new byte[9];
+		int len  = 0;
+		if(value < 0xfd){
+			buf[0] = (byte)value;
+			len = 1;
+		}else if( value <= 0xffff){
+			buf[0] = Byte.valueOf("fd",16);
+
+		}
 	}
 
 	private static TransferLengthData InputDataLength(int orderNum) {
@@ -322,6 +521,37 @@ public class Transaction {
 		String signatureScript = Account.createSignatureScript(publicKeyEncoded);
 		
 		return txData + Num + structLen + dataLen + data + contractDataLen + signatureScript;
+	}
+
+	public static String addSign(byte[] sign,byte[] publickeyEncode){
+		StringBuffer sb = new StringBuffer();
+		sb.append("4140").append(DataUtil.bytesToHexString(sign))
+				.append("23").append(Account.createSignatureScript(publickeyEncode));
+		return sb.toString();
+	}
+
+
+	public static boolean verifyAddr(String addr){
+		byte[] ProgramHash = Base58.decode(addr);
+		byte[] ProgramHashBuffer = new byte[21];
+		for (int i = 0 ; i < 21; i ++) {
+			ProgramHashBuffer[i] = ProgramHash[i];
+		}
+		byte[] ProgramSha256Buffer = Digest.hash256(ProgramHashBuffer);
+
+		byte[] ProgramSha256Buffer_part = new byte[4];
+		byte[] ProgramHash_part = new byte[4];
+		for(int i = 0 ; i < 4 ; i ++) {
+			ProgramSha256Buffer_part[i] = ProgramSha256Buffer[i];
+		}
+		for(int i = 0 ; i < 4 ; i ++) {
+			ProgramHash_part[i] = ProgramHash[i+21];
+		}
+		if(!DataUtil.bytesToHexString(ProgramSha256Buffer_part).equals(DataUtil.bytesToHexString(ProgramHash_part))) {
+			//address verify failed.
+			return false;
+		}
+		return true;
 	}
 	
 }

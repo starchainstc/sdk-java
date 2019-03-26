@@ -7,7 +7,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Comparator;
+import java.util.List;
 
+import com.starchain.sdk.data.DataUtil;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -21,6 +24,30 @@ public class SendTransfer {
 		return SendTransactionData(nodeAPI,txRawData);
 
 	}
+
+	public static String signTxAndSend(String node,String txData,List<Account> accounts){
+	    StringBuffer sb = new StringBuffer();
+	    sb.append(txData).append(DataUtil.numStoreInMemory(String.valueOf(accounts.size()),2));
+	    accounts.sort(new Comparator<Account>() {
+            @Override
+            public int compare(Account o1, Account o2) {
+                int len = o1.publicKeyEncoded.length;
+                for(int i=len-1;i>=0;i--){
+                    if(o1.publicKeyEncoded[i] - o2.publicKeyEncoded[i] >0){
+                        return -1;
+                    }else if(o1.publicKeyEncoded[i] - o2.publicKeyEncoded[i] < 0) {
+                        return 1;
+                    }
+                }
+                return 0;
+            }
+        });
+	    for(Account acc :accounts){
+            byte[] sign = Account.signatureData(txData,acc.privateKey);
+	        sb.append(Transaction.addSign(sign,acc.publicKeyEncoded));
+        }
+        return SendTransactionData(node,sb.toString());
+    }
 
 	public static String SendTransactionData(String nodeAPI,final String txRawData) {
 		  
@@ -44,8 +71,7 @@ public class SendTransfer {
             OutputStream os = connection.getOutputStream();  
             os.write(jsonObject.toString().getBytes());  
             os.flush();
-
-            if (connection.getResponseCode() == 200) {  
+            if (connection.getResponseCode() == 200) {
                 InputStream is = connection.getInputStream();  
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();  
                 int len = 0;  
@@ -59,7 +85,6 @@ public class SendTransfer {
                 final String result = new String(baos.toByteArray());  
 //                System.out.println("result:"+result);
                 return result;
-  
             }
         } catch (IOException e) {
 	        e.printStackTrace();

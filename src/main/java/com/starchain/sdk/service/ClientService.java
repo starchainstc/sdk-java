@@ -1,5 +1,6 @@
 package com.starchain.sdk.service;
 
+import ch.qos.logback.core.util.StringCollectionUtil;
 import com.starchain.sdk.Account;
 import com.starchain.sdk.AccountAsset;
 import com.starchain.sdk.NodeMsg;
@@ -8,11 +9,20 @@ import com.starchain.sdk.Transaction;
 import com.starchain.sdk.cryptography.Base58;
 import com.starchain.sdk.cryptography.ECC;
 import com.starchain.sdk.info.AssetInfo;
+import com.sun.org.apache.xerces.internal.util.TeeXMLDocumentFilterImpl;
+import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public class ClientService {
-	
+
+//    private static String host = "http://api.starchain.one";
+    private static String host = "http://47.75.4.61:25884";
+    private static final String STC_ASSET = "4ca6f87e7bfaf1a62545c3ebf6091b3f13ccd249396a27dd8aee0531ba8322cb";
+    private static final Logger log = LoggerFactory.getLogger("client");
 	/**
 	 * 创建账户
 	 * @return
@@ -105,6 +115,37 @@ public class ClientService {
     public static String SignTxAndSend (String nodeAPI,String txData,byte[] publicKeyEncoded,byte[] privateKey){
     	return SendTransfer.SignTxAndSend(nodeAPI, txData, publicKeyEncoded, privateKey);
     }
-    
-    
+
+
+    /**
+     * 多个私钥合并发送交易
+     * @param accs
+     * @param changeAddr 找零地址
+     * @param toAddr 收币地址
+     * @param amount 数量
+     * @param desc   附言信息
+     * @return
+     */
+    public static String sendStc(List<Account> accs,String changeAddr,String toAddr,BigDecimal amount,String desc){
+        AssetInfo info = AccountAsset.getAsset(accs,STC_ASSET,host);
+        if(info == null){
+            log.error("请去除没有币的私钥");
+            return "";
+        }
+        String txData = Transaction.makeTransferWithMulti(info,toAddr,changeAddr,amount,desc);
+        if(txData == null){
+            log.error("构造交易数据出错");
+            return "";
+        }
+        String result = SendTransfer.signTxAndSend(host,txData,accs);
+        if(result == null || result.equalsIgnoreCase("")){
+            log.error("请求失败");
+            return null;
+        }
+        JSONObject res = new JSONObject(result);
+        int errNo = res.getInt("Error");
+        if(errNo == 0)return res.getString("Result");
+        log.error(res.getString("Desc"));
+        return null;
+    }
 }

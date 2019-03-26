@@ -2,10 +2,11 @@ package com.starchain.sdk.info;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.json.JSONArray;
-
-
+import org.json.JSONObject;
 
 
 /**
@@ -20,6 +21,7 @@ public class AssetInfo implements Serializable {
 	private String assetName; // 资产名称
 	private BigDecimal balance; // 资产余额
 	private JSONArray Utxo; // 资产区块json
+	private List<Utxo> utxos;
 
 	public AssetInfo() {
 		super();
@@ -32,7 +34,17 @@ public class AssetInfo implements Serializable {
 		this.assetName = assetName;
 		this.balance = balance;
 		this.Utxo = Utxo;
+		this.utxos = new ArrayList<>();
+		Utxo.forEach(item ->{
+			if( item instanceof JSONObject){
+				String txid = ((JSONObject) item).getString("Txid");
+				BigDecimal value = ((JSONObject) item).getBigDecimal("Value");
+				int index = ((JSONObject) item).getInt("Index");
+				this.utxos.add(new com.starchain.sdk.info.Utxo(txid,value,index));
+			}
+		});
 	}
+
 
 	public void setAssetId(String assetId) {
 		this.assetId = assetId;
@@ -42,7 +54,7 @@ public class AssetInfo implements Serializable {
 		this.assetName = assetName;
 	}
 
-	public void setbalance(BigDecimal balance) {
+	public void setBalance(BigDecimal balance) {
 		this.balance = balance;
 	}
 
@@ -66,4 +78,11 @@ public class AssetInfo implements Serializable {
 		return this.Utxo;
 	}
 
+	public List<com.starchain.sdk.info.Utxo> getUtxos() {
+		return utxos;
+	}
+
+	public void setUtxos(List<com.starchain.sdk.info.Utxo> utxos) {
+		this.utxos = utxos;
+	}
 }

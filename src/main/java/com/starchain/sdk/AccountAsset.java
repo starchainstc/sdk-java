@@ -5,17 +5,24 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.starchain.sdk.data.BigDecimalUtil;
+import com.starchain.sdk.info.Utxo;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import com.starchain.sdk.http.HttpUtils;
 import com.starchain.sdk.info.AssetInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class AccountAsset {
+
+	private static Logger log = LoggerFactory.getLogger("asset");
 	
 	public static AssetInfo[] getUpspent(final String nodeAPI ,final Account account) {		
 		  
@@ -33,11 +40,9 @@ public class AccountAsset {
             if (statusCode == 200) {
                 InputStream is = connection.getInputStream();  
                 String result = HttpUtils.readMyInputStream(is);  
-//                System.out.println(result);
                 JSONObject object = new JSONObject(result);
 	            return AnalyzeCoins(object);
-	            
-            }else {  
+            }else {
             }  
 
         } catch (Exception e) {  
@@ -74,9 +79,37 @@ public class AccountAsset {
 
 		}
 		return assetInfo;
+	}
 
-		
-		
+	public static AssetInfo getAsset(List<Account> accountList,String assetId,final String nodeAPI){
+		AssetInfo info = new AssetInfo();
+		info.setAssetId(assetId);
+		List<Utxo> utxos = new ArrayList<>();
+		JSONArray arrJson = new JSONArray();
+		BigDecimal balance = BigDecimal.ZERO;
+		for(Account ac : accountList){
+			String res = HttpUtils.get(nodeAPI+"/api/v1/asset/utxo/"+ac.address+"/"+assetId);
+			if(res != null){
+				JSONObject json = new JSONObject(res);
+				int errno = json.getInt("Error");
+				if( errno == 0 && json.get("Result") != JSONObject.NULL){
+					JSONArray arr = json.getJSONArray("Result");
+					arr.forEach(item->{
+						arrJson.put(item);
+						String txid = ((JSONObject) item).getString("Txid");
+						BigDecimal value = ((JSONObject) item).getBigDecimal("Value");
+						int index = ((JSONObject) item).getInt("Index");
+						utxos.add(new Utxo(txid,value,index));
+					});
+				}else{
+					log.error("私钥：{} 余额为0",ac.script);
+					return null;
+				}
+			}
+		}
+		info.setUtxo(arrJson);
+		info.setUtxos(utxos);
+		return info;
 	}
 		
 }
