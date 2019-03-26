@@ -19,8 +19,7 @@ import java.util.List;
 
 public class ClientService {
 
-//    private static String host = "http://api.starchain.one";
-    private static String host = "http://47.75.4.61:25884";
+    private static String host = "http://api.starchain.one";
     private static final String STC_ASSET = "4ca6f87e7bfaf1a62545c3ebf6091b3f13ccd249396a27dd8aee0531ba8322cb";
     private static final Logger log = LoggerFactory.getLogger("client");
 	/**
