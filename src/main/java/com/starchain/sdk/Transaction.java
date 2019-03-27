@@ -2,7 +2,6 @@ package com.starchain.sdk;
 
 import com.starchain.sdk.data.BigDecimalUtil;
 import com.starchain.sdk.info.*;
-import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -13,6 +12,8 @@ import com.starchain.sdk.data.DataUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -210,7 +211,7 @@ public class Transaction {
 		return null;
 	}
 
-	public static String makeMtoMTransfer(AssetInfo assetInfo, List<DestAddr> addrs,String change,String attribute){
+	public static String makeMtoMTransfer(AssetInfo assetInfo, List<DestAddr> addrs,String change,String attribute) throws IOException {
 		BigDecimal sum = BigDecimal.ZERO;
 		for(DestAddr addr : addrs){
 			sum = BigDecimalUtil.add(sum,addr.getValue());
@@ -267,7 +268,7 @@ public class Transaction {
 		return sb.toString();
 	}
 
-	private static TransferInputData makeInputData(AssetInfo info,BigDecimal outsum){
+	private static TransferInputData makeInputData(AssetInfo info,BigDecimal outsum) throws IOException {
 		List<Utxo> utxos = info.getUtxos();
 		if(utxos != null && utxos.size()>0){
 			utxos.sort(new Comparator<Utxo>() {
@@ -295,7 +296,7 @@ public class Transaction {
 			}
 
 			TransferLengthData lengthData  = InputDataLength(k);
-			ByteOutputStream bais = new ByteOutputStream();
+			ByteArrayOutputStream bais = new ByteArrayOutputStream();
 			if(lengthData.getlen() ==1) {
 				bais.write(DataUtil.HexStringToByteArray(lengthData.getInputNum()));
 			}else {

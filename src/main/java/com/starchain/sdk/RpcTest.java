@@ -10,6 +10,7 @@ import java.util.List;
 
 public class RpcTest {
 
+	private static String urlEnd = "http://47.75.4.61:25884";
 	public static void main(String[] args) throws IOException, InterruptedException {
 
 		List<Account> list = new ArrayList<>();
