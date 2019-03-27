@@ -14,11 +14,11 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class ClientService {
 
-//    private static String host = "http://api.starchain.one";
-    private static String host = "http://47.75.4.61:25884";
+    private static String host = "http://api.starchain.one";
     private static final String STC_ASSET = "4ca6f87e7bfaf1a62545c3ebf6091b3f13ccd249396a27dd8aee0531ba8322cb";
     private static final Logger log = LoggerFactory.getLogger("client");
 	/**
@@ -125,7 +125,8 @@ public class ClientService {
      * @return
      */
     public static String sendStc(List<Account> accs,String changeAddr,String toAddr,BigDecimal amount,String desc){
-        AssetInfo info = AccountAsset.getAsset(accs,STC_ASSET,host);
+        List<String> addrs = accs.stream().map(item-> item.address).collect(Collectors.toList());
+        AssetInfo info = AccountAsset.getAsset(addrs,STC_ASSET,host);
         if(info == null){
             log.error("请去除没有币的私钥");
             return "";
@@ -135,7 +136,8 @@ public class ClientService {
             log.error("构造交易数据出错");
             return "";
         }
-        String result = SendTransfer.signTxAndSend(host,txData,accs);
+        String rawData = SendTransfer.signTx(host,txData,accs);
+        String result = SendTransfer.SendTransactionData(host,rawData);
         if(result == null || result.equalsIgnoreCase("")){
             log.error("请求失败");
             return null;

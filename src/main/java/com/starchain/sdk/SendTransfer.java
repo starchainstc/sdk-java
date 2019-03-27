@@ -1,6 +1,10 @@
 package com.starchain.sdk;
 
 
+import com.starchain.sdk.data.DataUtil;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,10 +13,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Comparator;
 import java.util.List;
-
-import com.starchain.sdk.data.DataUtil;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 
 public class SendTransfer {
@@ -25,7 +25,7 @@ public class SendTransfer {
 
 	}
 
-	public static String signTxAndSend(String node,String txData,List<Account> accounts){
+	public static String signTx(String node,String txData,List<Account> accounts){
 	    StringBuffer sb = new StringBuffer();
 	    sb.append(txData).append(DataUtil.numStoreInMemory(String.valueOf(accounts.size()),2));
 	    accounts.sort(new Comparator<Account>() {
@@ -46,7 +46,7 @@ public class SendTransfer {
             byte[] sign = Account.signatureData(txData,acc.privateKey);
 	        sb.append(Transaction.addSign(sign,acc.publicKeyEncoded));
         }
-        return SendTransactionData(node,sb.toString());
+        return sb.toString();
     }
 
 	public static String SendTransactionData(String nodeAPI,final String txRawData) {

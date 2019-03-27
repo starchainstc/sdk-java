@@ -1,23 +1,22 @@
 package com.starchain.sdk;
 
 
+import com.starchain.sdk.data.BigDecimalUtil;
+import com.starchain.sdk.http.HttpUtils;
+import com.starchain.sdk.info.AssetInfo;
+import com.starchain.sdk.info.Utxo;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.starchain.sdk.data.BigDecimalUtil;
-import com.starchain.sdk.info.Utxo;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import com.starchain.sdk.http.HttpUtils;
-import com.starchain.sdk.info.AssetInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 public class AccountAsset {
@@ -81,14 +80,14 @@ public class AccountAsset {
 		return assetInfo;
 	}
 
-	public static AssetInfo getAsset(List<Account> accountList,String assetId,final String nodeAPI){
+	public static AssetInfo getAsset(List<String> addrs,String assetId,final String nodeAPI){
 		AssetInfo info = new AssetInfo();
 		info.setAssetId(assetId);
 		List<Utxo> utxos = new ArrayList<>();
 		JSONArray arrJson = new JSONArray();
 		BigDecimal balance = BigDecimal.ZERO;
-		for(Account ac : accountList){
-			String res = HttpUtils.get(nodeAPI+"/api/v1/asset/utxo/"+ac.address+"/"+assetId);
+		for(String addr : addrs){
+			String res = HttpUtils.get(nodeAPI+"/api/v1/asset/utxo/"+addr+"/"+assetId);
 			if(res != null){
 				JSONObject json = new JSONObject(res);
 				int errno = json.getInt("Error");
@@ -102,7 +101,7 @@ public class AccountAsset {
 						utxos.add(new Utxo(txid,value,index));
 					});
 				}else{
-					log.error("私钥：{} 余额为0",ac.script);
+					log.error("地址：{} 余额为0",addr);
 					return null;
 				}
 			}
