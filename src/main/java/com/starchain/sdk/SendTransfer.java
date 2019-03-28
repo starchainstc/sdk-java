@@ -32,7 +32,7 @@ public class SendTransfer {
             @Override
             public int compare(Account o1, Account o2) {
                 int len = o1.publicKeyEncoded.length;
-                for(int i=len-1;i>=0;i--){
+                for(int i=20;i>=0;i--){
                     if(o1.publicKeyEncoded[i] - o2.publicKeyEncoded[i] >0){
                         return -1;
                     }else if(o1.publicKeyEncoded[i] - o2.publicKeyEncoded[i] < 0) {
