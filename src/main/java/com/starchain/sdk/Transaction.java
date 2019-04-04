@@ -1,16 +1,5 @@
 package com.starchain.sdk;
 
-import com.starchain.sdk.cryptography.Base58;
-import com.starchain.sdk.cryptography.Digest;
-import com.starchain.sdk.data.BigDecimalUtil;
-import com.starchain.sdk.data.DataUtil;
-import com.starchain.sdk.info.*;
-import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -19,6 +8,21 @@ import java.math.BigInteger;
 import java.util.Comparator;
 import java.util.List;
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+
+import com.starchain.sdk.cryptography.Base58;
+import com.starchain.sdk.cryptography.Digest;
+import com.starchain.sdk.data.BigDecimalUtil;
+import com.starchain.sdk.data.DataUtil;
+import com.starchain.sdk.info.AssetInfo;
+import com.starchain.sdk.info.DestAddr;
+import com.starchain.sdk.info.TransferInputData;
+import com.starchain.sdk.info.TransferLengthData;
+import com.starchain.sdk.info.Utxo;
+import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Transaction {
 
@@ -330,15 +334,15 @@ public class Transaction {
 	
 	private static TransferInputData makeTransferInputData(AssetInfo Asset , BigDecimal transferAssetAmount) {
 		JSONArray Utxo = Asset.getUtxo();
-		BigDecimal[] coin_value = new BigDecimal[Utxo.length()] ;
-		String[] coin_txid = new String[Utxo.length()];
-		int[] coin_index = new int[Utxo.length()];
+		BigDecimal[] coin_value = new BigDecimal[Utxo.size()] ;
+		String[] coin_txid = new String[Utxo.size()];
+		int[] coin_index = new int[Utxo.size()];
 		try {
-			for (int i = 0 ; i < Utxo.length() ; i ++) {
+			for (int i = 0 ; i < Utxo.size() ; i ++) {
 				JSONObject utxoObj = Utxo.getJSONObject(i);
 				coin_value[i] = utxoObj.getBigDecimal("Value");
 				coin_txid[i] = utxoObj.getString("Txid");
-				coin_index[i] = utxoObj.getInt("Index");
+				coin_index[i] = utxoObj.getIntValue("Index");
 			}
 		} catch (Exception e) {  
             e.printStackTrace();  				  

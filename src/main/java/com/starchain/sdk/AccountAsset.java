@@ -1,16 +1,5 @@
 package com.starchain.sdk;
 
-
-import com.starchain.sdk.data.BigDecimalUtil;
-import com.starchain.sdk.http.HttpUtils;
-import com.starchain.sdk.info.AssetInfo;
-import com.starchain.sdk.info.Utxo;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.HttpURLConnection;
@@ -18,6 +7,16 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONException;
+import com.alibaba.fastjson.JSONObject;
+
+import com.starchain.sdk.data.BigDecimalUtil;
+import com.starchain.sdk.http.HttpUtils;
+import com.starchain.sdk.info.AssetInfo;
+import com.starchain.sdk.info.Utxo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AccountAsset {
 
@@ -39,7 +38,7 @@ public class AccountAsset {
             if (statusCode == 200) {
                 InputStream is = connection.getInputStream();  
                 String result = HttpUtils.readMyInputStream(is);  
-                JSONObject object = new JSONObject(result);
+                JSONObject object = JSONObject.parseObject(result);
 	            return AnalyzeCoins(object);
             }else {
             }  
@@ -58,14 +57,14 @@ public class AccountAsset {
 	protected static AssetInfo[] AnalyzeCoins(JSONObject response) throws JSONException {
 		
 		JSONArray AssetResult = response.getJSONArray("Result");
-		AssetInfo []assetInfo = new AssetInfo[AssetResult.length()];
+		AssetInfo []assetInfo = new AssetInfo[AssetResult.size()];
 		
-		for (int i = 0 ; i < AssetResult.length() ; i ++) {
+		for (int i = 0 ; i < AssetResult.size() ; i ++) {
 			JSONObject assetResultObj =  AssetResult.getJSONObject(i);
 			
 			JSONArray Utxo = assetResultObj.getJSONArray("Utxo");
 			BigDecimal amount = BigDecimal.ZERO;
-			for (int j = 0 ; j < Utxo.length() ; j ++) {
+			for (int j = 0 ; j < Utxo.size() ; j ++) {
 				JSONObject utxoObj = Utxo.getJSONObject(j);
 				amount = BigDecimalUtil.add(amount,utxoObj.getBigDecimal("Value"));
 //				amount = amount + utxoObj.getDouble("Value");
@@ -89,15 +88,15 @@ public class AccountAsset {
 		for(String addr : addrs){
 			String res = HttpUtils.get(nodeAPI+"/api/v1/asset/utxo/"+addr+"/"+assetId);
 			if(res != null){
-				JSONObject json = new JSONObject(res);
-				int errno = json.getInt("Error");
-				if( errno == 0 && json.get("Result") != JSONObject.NULL){
+				JSONObject json = JSONObject.parseObject(res);
+				int errno = json.getIntValue("Error");
+				if( errno == 0 && json.get("Result") != null){
 					JSONArray arr = json.getJSONArray("Result");
 					arr.forEach(item->{
-						arrJson.put(item);
+						arrJson.add(item);
 						String txid = ((JSONObject) item).getString("Txid");
 						BigDecimal value = ((JSONObject) item).getBigDecimal("Value");
-						int index = ((JSONObject) item).getInt("Index");
+						int index = ((JSONObject) item).getIntValue("Index");
 						utxos.add(new Utxo(txid,value,index));
 					});
 				}else{
