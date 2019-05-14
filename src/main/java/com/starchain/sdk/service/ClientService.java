@@ -79,7 +79,7 @@ public class ClientService {
 		}
     	return aInfo;
     }
-    
+
     /**
      * 获取节点高度
      * @param nodeAPI
@@ -124,19 +124,20 @@ public class ClientService {
      * @param desc   附言信息
      * @return
      */
-    public static String sendStc(List<Account> accs,String changeAddr,String toAddr,BigDecimal amount,String desc){
+    public static String sendStc(List<Account> accs,String changeAddr,String toAddr,BigDecimal amount,String desc,boolean withall){
         List<String> addrs = accs.stream().map(item-> item.address).collect(Collectors.toList());
         AssetInfo info = AccountAsset.getAsset(addrs,STC_ASSET,host);
         if(info == null){
             log.error("请去除没有币的私钥");
             return "";
         }
-        String txData = Transaction.makeTransferWithMulti(info,toAddr,changeAddr,amount,desc);
+        String txData = Transaction.makeTransferWithMulti(info,toAddr,changeAddr,amount,desc,withall);
         if(txData == null){
             log.error("构造交易数据出错");
             return "";
         }
-        String rawData = SendTransfer.signTx(host,txData,accs);
+        String rawData = SendTransfer.signTx(txData,accs);
+        System.out.println(rawData);
         String result = SendTransfer.SendTransactionData(host,rawData);
         if(result == null || result.equalsIgnoreCase("")){
             log.error("请求失败");

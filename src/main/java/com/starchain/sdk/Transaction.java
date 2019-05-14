@@ -1,28 +1,26 @@
 package com.starchain.sdk;
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.starchain.sdk.cryptography.Base58;
+import com.starchain.sdk.cryptography.Digest;
+import com.starchain.sdk.data.BigDecimalUtil;
+import com.starchain.sdk.data.DataUtil;
+import com.starchain.sdk.info.*;
+import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Comparator;
 import java.util.List;
 
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
-
-import com.starchain.sdk.cryptography.Base58;
-import com.starchain.sdk.cryptography.Digest;
-import com.starchain.sdk.data.BigDecimalUtil;
-import com.starchain.sdk.data.DataUtil;
-import com.starchain.sdk.info.AssetInfo;
-import com.starchain.sdk.info.DestAddr;
-import com.starchain.sdk.info.TransferInputData;
-import com.starchain.sdk.info.TransferLengthData;
-import com.starchain.sdk.info.Utxo;
-import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class Transaction {
 
@@ -155,7 +153,7 @@ public class Transaction {
 		return data;
 	}
 
-	public static String makeTransferWithMulti(AssetInfo assetInfo,String to,String change, BigDecimal amount,String desc){
+	public static String makeTransferWithMulti(AssetInfo assetInfo,String to,String change, BigDecimal amount,String desc,boolean withall){
 		if(verifyAddr(to)){
 			byte[] program = Base58.decode(to);
 			byte[] changes = Base58.decode(change);
@@ -166,7 +164,22 @@ public class Transaction {
 				changeHash[i] = changes[i+1];
 			}
 			//Input Construct
-			TransferInputData inputData = makeTransferInputData(assetInfo,amount);
+			TransferInputData inputData = null;
+			if(withall){
+				try {
+					inputData = makeInputDataWithallUtxos(assetInfo,amount);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}else{
+//				inputData = makeTransferInputData(assetInfo,amount);
+				try {
+					inputData = makeInputData(assetInfo,amount);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+
 			if(inputData == null) {
 				log.error("合成输入数据出错");
 				return null;
@@ -298,16 +311,8 @@ public class Transaction {
 				k = k+1 ;
 			}
 
-			TransferLengthData lengthData  = InputDataLength(k);
 			ByteArrayOutputStream bais = new ByteArrayOutputStream();
-			if(lengthData.getlen() ==1) {
-				bais.write(DataUtil.HexStringToByteArray(lengthData.getInputNum()));
-			}else {
-				byte[] firstVal = DataUtil.HexStringToByteArray(lengthData.getfirstVal());
-				byte[] inputNum = DataUtil.HexStringToByteArray(lengthData.getInputNum());
-				bais.write(firstVal);
-				bais.write(inputNum);
-			}
+			writeLong(bais,k+1);
 
 			//input coins  programhash
 			for( int x = 0 ; x < k+1 ; x++) {
@@ -330,6 +335,44 @@ public class Transaction {
 		return null;
 	}
 
+	private static TransferInputData makeInputDataWithallUtxos(AssetInfo info,BigDecimal outsum) throws IOException {
+		List<Utxo> utxos = info.getUtxos();
+		if(utxos != null && utxos.size()>0){
+			utxos.sort(new Comparator<Utxo>() {
+				@Override
+				public int compare(Utxo o1, Utxo o2) {
+					return o1.getValue().compareTo(o2.getValue());
+				}
+			});
+
+			BigDecimal total = utxos.stream().map(item->{
+				return item.getValue();
+			}).reduce(BigDecimal.ZERO,BigDecimal::add);
+
+			if(total.compareTo(outsum)<0){
+				return null;
+			}
+
+			ByteArrayOutputStream bais = new ByteArrayOutputStream();
+			writeLong(bais,utxos.size());
+
+			//input coins  programhash
+			for( int x = 0 ; x < utxos.size() ; x++) {
+				byte[] txid = DataUtil.reverseArray(DataUtil.HexStringToByteArray(utxos.get(x).getTxid()));
+				bais.write(txid);
+				bais.write(DataUtil.HexStringToByteArray(DataUtil.numStoreInMemory(Integer.toHexString(utxos.get(x).getIndex()), 4)));
+			}
+
+			//calc coin_amount
+			BigDecimal balance = total;
+			TransferInputData inputData = new TransferInputData();
+			inputData.setCoin_amount(balance);
+			inputData.setData(bais.toByteArray());
+			return inputData;
+		}
+		return null;
+	}
+
 
 	
 	private static TransferInputData makeTransferInputData(AssetInfo Asset , BigDecimal transferAssetAmount) {
@@ -342,10 +385,10 @@ public class Transaction {
 				JSONObject utxoObj = Utxo.getJSONObject(i);
 				coin_value[i] = utxoObj.getBigDecimal("Value");
 				coin_txid[i] = utxoObj.getString("Txid");
-				coin_index[i] = utxoObj.getIntValue("Index");
+				coin_index[i] = utxoObj.getInteger("Index");
 			}
-		} catch (Exception e) {  
-            e.printStackTrace();  				  
+		} catch (Exception e) {
+            e.printStackTrace();
         }
 
         //排序
@@ -366,18 +409,18 @@ public class Transaction {
 	            }
 	        }
 	    }
-	    
+
 	    BigDecimal sum = BigDecimal.ZERO;
 	    for(int i = 0 ; i < coin_value.length ; i ++) {
 	    	sum = BigDecimalUtil.add(sum,coin_value[i]);
 	    }
-		
+
 	    if(sum.compareTo(transferAssetAmount)<0) {
 	    	//总余额小于转帐金额
 			log.error("balance is not enought");
 	    	return null;
 	    }
-	    
+
 	    BigDecimal amount = transferAssetAmount;
 	    int k = 0;
 	    while(coin_value[k].compareTo(amount)<=0) {
@@ -386,8 +429,8 @@ public class Transaction {
 	    		break;
 	    	}
 	    	k = k+1 ;
-	    }    
-	    
+	    }
+
 	    TransferLengthData lengthData  = InputDataLength(k);
 	    //coin[0] - coin[k]
 	    byte[] data = new byte[lengthData.getlen()+34*(k+1)];
@@ -411,7 +454,7 @@ public class Transaction {
 	    	}
 	    	m = m + inputNum.length;
 	    }
-	    
+
 	    //input coins  programhash
 	    for( int x = 0 ; x < k+1 ; x++) {
 	    	//txid programhash
@@ -420,7 +463,7 @@ public class Transaction {
 	    	for(int i = 0 ; i < txid.length ; i++) {
 	    		data[pos+i] = txid[i];
 	    	}
-	    	
+
 	    	//index pos
 	    	pos = pos + 32;
 	    	byte[] index = DataUtil.HexStringToByteArray(DataUtil.numStoreInMemory(Integer.toHexString(coin_index[x]), 4));
@@ -428,32 +471,50 @@ public class Transaction {
 	    		data[pos+i] = index[i];
 	    	}
 	    }
-	    
+
     	//calc coin_amount
     	BigDecimal balance = BigDecimal.ZERO;
     	for(int i = 0 ; i < k+1 ; i ++) {
     		balance = BigDecimalUtil.add(balance , coin_value[i]);
     	}
-	    
+
     	TransferInputData inputData = new TransferInputData();
     	inputData.setCoin_amount(balance);
     	inputData.setData(data);
-    
-    	
+
+
 		return inputData;
-		
+
 	}
 
-	private void writeVarUint(OutputStream os,long value){
+	private static void writeLong(OutputStream os,long value) throws IOException {
 		byte[] buf = new byte[9];
+		ByteBuffer bb = null;
 		int len  = 0;
 		if(value < 0xfd){
 			buf[0] = (byte)value;
 			len = 1;
 		}else if( value <= 0xffff){
 			buf[0] = Byte.valueOf("fd",16);
+			len = 3;
+			bb = ByteBuffer.allocate(2);
 
+		}else if( value <= 0xffffffff){
+			buf[0] = Byte.valueOf("fe",16);
+			len = 5;
+			bb = ByteBuffer.allocate(4);
+		}else{
+			buf[0] = Byte.valueOf("ff",16);
+			len = 9;
+			bb = ByteBuffer.allocate(8);
 		}
+		if(bb != null){
+			bb.asLongBuffer().put(value);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			buf = bb.array();
+		}
+
+		os.write(ByteUtils.subArray(buf,0,len));
 	}
 
 	private static TransferLengthData InputDataLength(int orderNum) {

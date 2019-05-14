@@ -25,14 +25,16 @@ public class SendTransfer {
 
 	}
 
-	public static String signTx(String node,String txData,List<Account> accounts){
+	public static String signTx(String txData,List<Account> accounts){
 	    StringBuffer sb = new StringBuffer();
 	    sb.append(txData).append(DataUtil.numStoreInMemory(String.valueOf(accounts.size()),2));
 	    accounts.sort(new Comparator<Account>() {
             @Override
             public int compare(Account o1, Account o2) {
-                int len = o1.publicKeyEncoded.length;
                 for(int i=20;i>=0;i--){
+                    if(o1.publicKeyEncoded[i] == o2.publicKeyEncoded[i]){
+                        continue;
+                    }
                     if(o1.publicKeyEncoded[i] - o2.publicKeyEncoded[i] >0){
                         return -1;
                     }else if(o1.publicKeyEncoded[i] - o2.publicKeyEncoded[i] < 0) {
@@ -42,9 +44,9 @@ public class SendTransfer {
                 return 0;
             }
         });
-	    for(Account acc :accounts){
-            byte[] sign = Account.signatureData(txData,acc.privateKey);
-	        sb.append(Transaction.addSign(sign,acc.publicKeyEncoded));
+	    for(int i = 0;i<accounts.size();i++){
+            byte[] sign = Account.signatureData(txData,accounts.get(i).privateKey);
+	        sb.append(Transaction.addSign(sign,accounts.get(i).publicKeyEncoded));
         }
         return sb.toString();
     }

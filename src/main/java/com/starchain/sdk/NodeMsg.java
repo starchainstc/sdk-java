@@ -37,7 +37,6 @@ public class NodeMsg {
                 response.append(line);  
             }  
 			String nodeMsg = response.toString();
-			System.out.println(nodeMsg);
             return nodeMsg;
         } catch (Exception e) {  
             e.printStackTrace();

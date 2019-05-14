@@ -1,12 +1,15 @@
 package com.starchain.sdk.info;
 
+
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
+
 
 /**
  * 资产信息
@@ -38,7 +41,7 @@ public class AssetInfo implements Serializable {
 			if( item instanceof JSONObject){
 				String txid = ((JSONObject) item).getString("Txid");
 				BigDecimal value = ((JSONObject) item).getBigDecimal("Value");
-				int index = ((JSONObject) item).getIntValue("Index");
+				int index = ((JSONObject) item).getInteger("Index");
 				this.utxos.add(new com.starchain.sdk.info.Utxo(txid,value,index));
 			}
 		});

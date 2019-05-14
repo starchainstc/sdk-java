@@ -1,5 +1,17 @@
 package com.starchain.sdk;
 
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONException;
+import com.alibaba.fastjson.JSONObject;
+import com.starchain.sdk.data.BigDecimalUtil;
+import com.starchain.sdk.http.HttpUtils;
+import com.starchain.sdk.info.AssetInfo;
+import com.starchain.sdk.info.Utxo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.HttpURLConnection;
@@ -7,16 +19,6 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONException;
-import com.alibaba.fastjson.JSONObject;
-
-import com.starchain.sdk.data.BigDecimalUtil;
-import com.starchain.sdk.http.HttpUtils;
-import com.starchain.sdk.info.AssetInfo;
-import com.starchain.sdk.info.Utxo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class AccountAsset {
 
@@ -38,7 +40,7 @@ public class AccountAsset {
             if (statusCode == 200) {
                 InputStream is = connection.getInputStream();  
                 String result = HttpUtils.readMyInputStream(is);  
-                JSONObject object = JSONObject.parseObject(result);
+                JSONObject object = JSON.parseObject(result);
 	            return AnalyzeCoins(object);
             }else {
             }  
@@ -84,19 +86,18 @@ public class AccountAsset {
 		info.setAssetId(assetId);
 		List<Utxo> utxos = new ArrayList<>();
 		JSONArray arrJson = new JSONArray();
-		BigDecimal balance = BigDecimal.ZERO;
 		for(String addr : addrs){
 			String res = HttpUtils.get(nodeAPI+"/api/v1/asset/utxo/"+addr+"/"+assetId);
 			if(res != null){
-				JSONObject json = JSONObject.parseObject(res);
-				int errno = json.getIntValue("Error");
+				JSONObject json = JSON.parseObject(res);
+				int errno = json.getInteger("Error");
 				if( errno == 0 && json.get("Result") != null){
 					JSONArray arr = json.getJSONArray("Result");
 					arr.forEach(item->{
 						arrJson.add(item);
 						String txid = ((JSONObject) item).getString("Txid");
 						BigDecimal value = ((JSONObject) item).getBigDecimal("Value");
-						int index = ((JSONObject) item).getIntValue("Index");
+						int index = ((JSONObject) item).getInteger("Index");
 						utxos.add(new Utxo(txid,value,index));
 					});
 				}else{
