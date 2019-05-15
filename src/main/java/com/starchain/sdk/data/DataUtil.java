@@ -2,6 +2,8 @@ package com.starchain.sdk.data;
 
 import org.apache.http.util.TextUtils;
 
+import java.math.BigInteger;
+
 
 public class DataUtil {
 
@@ -91,5 +93,14 @@ public class DataUtil {
 
 	        return result;
 	    }
+
+
+    public static void main(String[] args) {
+
+        byte [] data = HexStringToByteArray("80b2e60e00000000");
+        byte[] re = reverseArray(data);
+        String da = bytesToHexString(re);
+        System.out.println(new BigInteger(da,16));
+    }
     
 }
