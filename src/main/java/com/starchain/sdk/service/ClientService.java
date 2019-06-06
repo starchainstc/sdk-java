@@ -8,11 +8,14 @@ import com.starchain.sdk.Transaction;
 import com.starchain.sdk.cryptography.Base58;
 import com.starchain.sdk.cryptography.ECC;
 import com.starchain.sdk.info.AssetInfo;
+import com.starchain.sdk.info.DestAddr;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -115,6 +118,18 @@ public class ClientService {
     }
 
 
+
+    /**
+     * 多个私钥合并发送交易  找零地址默认为第一个私钥的址
+     * @param accs
+     * @param toAddr 收币地址
+     * @param amount 数量
+     * @param desc   附言信息
+     * @return
+     */
+    public static String sendStc(List<Account> accs,String toAddr,BigDecimal amount,String desc,boolean withall){
+        return sendStc(accs,accs.get(0).address,toAddr,amount,desc,withall);
+    }
     /**
      * 多个私钥合并发送交易
      * @param accs
@@ -137,7 +152,6 @@ public class ClientService {
             return "";
         }
         String rawData = SendTransfer.signTx(txData,accs);
-        System.out.println(rawData);
         String result = SendTransfer.SendTransactionData(host,rawData);
         if(result == null || result.equalsIgnoreCase("")){
             log.error("请求失败");
@@ -148,5 +162,27 @@ public class ClientService {
         if(errNo == 0)return res.getString("Result");
         log.error(res.getString("Desc"));
         return null;
+    }
+
+    public static String sentToMulti(Account account, List<DestAddr> addrs, String desc){
+        AssetInfo info = AccountAsset.getAsset(Arrays.asList(account.address),STC_ASSET,host);
+        try {
+            String txData = Transaction.makeMtoMTransfer(info,addrs,account.address,desc);
+            String rawData = SendTransfer.signTx(txData,Arrays.asList(account));
+            System.out.println(rawData);
+            String result = SendTransfer.SendTransactionData(host,rawData);
+            if(result == null || result.equalsIgnoreCase("")){
+                log.error("请求失败");
+                return null;
+            }
+            JSONObject res = new JSONObject(result);
+            int errNo = res.getInt("Error");
+            if(errNo == 0)return res.getString("Result");
+            log.error(res.getString("Desc"));
+            return null;
+        } catch (IOException e) {
+            log.error(e.getMessage());
+            return "";
+        }
     }
 }

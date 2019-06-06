@@ -18,6 +18,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 public class AccountAsset {
@@ -83,6 +84,8 @@ public class AccountAsset {
 
 	public static AssetInfo getAsset(List<String> addrs,String assetId,final String nodeAPI){
 		AssetInfo info = new AssetInfo();
+		//去重
+		addrs = addrs.stream().distinct().collect(Collectors.toList());
 		info.setAssetId(assetId);
 		List<Utxo> utxos = new ArrayList<>();
 		JSONArray arrJson = new JSONArray();

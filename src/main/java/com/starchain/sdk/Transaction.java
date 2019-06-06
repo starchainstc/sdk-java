@@ -1,5 +1,6 @@
 package com.starchain.sdk;
 
+import ch.qos.logback.core.encoder.ByteArrayUtil;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.starchain.sdk.cryptography.Base58;
@@ -8,12 +9,11 @@ import com.starchain.sdk.data.BigDecimalUtil;
 import com.starchain.sdk.data.DataUtil;
 import com.starchain.sdk.info.*;
 import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
+import org.bouncycastle.util.encoders.Hex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -172,7 +172,6 @@ public class Transaction {
 					e.printStackTrace();
 				}
 			}else{
-//				inputData = makeTransferInputData(assetInfo,amount);
 				try {
 					inputData = makeInputData(assetInfo,amount);
 				} catch (IOException e) {
@@ -267,7 +266,10 @@ public class Transaction {
 			outputnumber++;
 		}
 		String outputNum = DataUtil.numStoreInMemory(String.valueOf(outputnumber),2);
-		sb.append(outputNum);
+		ByteArrayOutputStream os = new ByteArrayOutputStream();
+		writeLong(os,outputnumber);
+		sb.append(DataUtil.bytesToHexString(os.toByteArray()));
+//		sb.append(outputNum);
 
 		String outputAssetId = DataUtil.bytesToHexString(DataUtil.reverseArray(DataUtil.HexStringToByteArray(assetInfo.getAssetId())));
 
@@ -487,34 +489,30 @@ public class Transaction {
 
 	}
 
-	private static void writeLong(OutputStream os,long value) throws IOException {
-		byte[] buf = new byte[9];
+	public static void writeLong(ByteArrayOutputStream os,long value) throws IOException {
 		ByteBuffer bb = null;
-		int len  = 0;
 		if(value < 0xfd){
-			buf[0] = (byte)value;
-			len = 1;
+			bb = ByteBuffer.allocate(1);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.put((byte)value);
 		}else if( value <= 0xffff){
-			buf[0] = Byte.valueOf("fd",16);
-			len = 3;
-			bb = ByteBuffer.allocate(2);
+			bb = ByteBuffer.allocate(3);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.put((byte)253);
+			bb.putShort((short) value);
 
 		}else if( value <= 0xffffffff){
-			buf[0] = Byte.valueOf("fe",16);
-			len = 5;
-			bb = ByteBuffer.allocate(4);
-		}else{
-			buf[0] = Byte.valueOf("ff",16);
-			len = 9;
-			bb = ByteBuffer.allocate(8);
-		}
-		if(bb != null){
-			bb.asLongBuffer().put(value);
+			bb = ByteBuffer.allocate(5);
 			bb.order(ByteOrder.LITTLE_ENDIAN);
-			buf = bb.array();
+			bb.put((byte)254);
+			bb.putInt((int)value);
+		}else{
+			bb = ByteBuffer.allocate(9);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.put((byte)255);
+			bb.putLong(value);
 		}
-
-		os.write(ByteUtils.subArray(buf,0,len));
+		os.write(bb.array());
 	}
 
 	private static TransferLengthData InputDataLength(int orderNum) {
@@ -617,6 +615,22 @@ public class Transaction {
 			return false;
 		}
 		return true;
+	}
+
+	public static void main(String[] args) throws IOException {
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//		writeLong(baos,2580);
+		ByteBuffer buf = ByteBuffer.allocate(3);
+		long a = 255;
+		baos.write((byte)a);
+		buf.put((byte)a);
+		long b = 6532;
+		buf.asShortBuffer().put((short)b);
+//		System.out.println(ByteUtils.toHexString(baos.toByteArray()));
+		System.out.println(ByteUtils.toHexString(buf.array()));
+//		baos.write(0xff);
+//		baos.write(BigInteger.valueOf(254).toByteArray());
+//		System.out.println(Hex.toHexString(baos.toByteArray()));
 	}
 	
 }

@@ -12,6 +12,7 @@ import com.starchain.sdk.cryptography.ECC;
 import com.starchain.sdk.data.DataUtil;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 
 
 /**
@@ -107,6 +108,17 @@ public class Account {
 	   System.arraycopy(BigIntegers.asUnsignedByteArray(32, bi[1]), 0, signature, 32, 32);
 	   return signature;
 	}
-	
-    
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+		Account account = (Account) o;
+		return Arrays.equals(privateKey, account.privateKey);
+	}
+
+	@Override
+	public int hashCode() {
+		return Arrays.hashCode(privateKey);
+	}
 }

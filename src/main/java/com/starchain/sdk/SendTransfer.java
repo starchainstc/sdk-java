@@ -15,6 +15,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 public class SendTransfer {
@@ -24,37 +25,51 @@ public class SendTransfer {
 		byte[] sign = Account.signatureData(txData,privateKey);
 		String txRawData = Transaction.AddContract(txData , sign , publicKeyEncoded);
 		return SendTransactionData(nodeAPI,txRawData);
-
 	}
 
-	public static String signTx(String txData,List<Account> accounts){
-	    StringBuffer sb = new StringBuffer();
-	    sb.append(txData).append(DataUtil.numStoreInMemory(String.valueOf(accounts.size()),2));
-	    accounts.sort(new Comparator<Account>() {
-            @Override
-            public int compare(Account o1, Account o2) {
-                byte[] hash1 = stcHash(DataUtil.HexStringToByteArray(Account.createSignatureScript(o1.publicKeyEncoded)));
-                byte[] hash2 = stcHash(DataUtil.HexStringToByteArray(Account.createSignatureScript(o2.publicKeyEncoded)));
-                for(int i=hash1.length-1;i>=0;i--){
-                    Byte a = hash1[i];
-                    Byte b = hash2[i];
-                    Integer ia = 0xff&a;
-                    Integer ib = 0xff&b;
-                    int res = ia.compareTo(ib);
-                    if(res == 0){
-                        continue;
-                    }else{
-                        return res;
+	public static String signTx(String txData,List<Account> accounts) {
+        try {
+//            StringBuffer sb = new StringBuffer();
+            //去重
+            accounts = accounts.stream().distinct().collect(Collectors.toList());
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+                baos.write(DataUtil.HexStringToByteArray(txData));
+
+            Transaction.writeLong(baos,accounts.size());
+
+//            sb.append(txData).append(DataUtil.numStoreInMemory(Integer.toHexString(accounts.size()),2));
+            accounts.sort(new Comparator<Account>() {
+                @Override
+                public int compare(Account o1, Account o2) {
+                    byte[] hash1 = stcHash(DataUtil.HexStringToByteArray(Account.createSignatureScript(o1.publicKeyEncoded)));
+                    byte[] hash2 = stcHash(DataUtil.HexStringToByteArray(Account.createSignatureScript(o2.publicKeyEncoded)));
+                    for(int i=hash1.length-1;i>=0;i--){
+                        Byte a = hash1[i];
+                        Byte b = hash2[i];
+                        Integer ia = 0xff&a;
+                        Integer ib = 0xff&b;
+                        int res = ia.compareTo(ib);
+                        if(res == 0){
+                            continue;
+                        }else{
+                            return res;
+                        }
                     }
+                    return 0;
                 }
-                return 0;
+            });
+            for(int i = 0;i<accounts.size();i++){
+                byte[] sign = Account.signatureData(txData,accounts.get(i).privateKey);
+                baos.write(DataUtil.HexStringToByteArray(Transaction.addSign(sign,accounts.get(i).publicKeyEncoded)));
+//                sb.append(Transaction.addSign(sign,accounts.get(i).publicKeyEncoded));
             }
-        });
-	    for(int i = 0;i<accounts.size();i++){
-            byte[] sign = Account.signatureData(txData,accounts.get(i).privateKey);
-	        sb.append(Transaction.addSign(sign,accounts.get(i).publicKeyEncoded));
+    //        return sb.toString();
+            return DataUtil.bytesToHexString(baos.toByteArray());
+        } catch (IOException e) {
+            e.printStackTrace();
+            return "";
         }
-        return sb.toString();
     }
 
 	public static String SendTransactionData(String nodeAPI,final String txRawData) {
